@@ -54,10 +54,12 @@ class TFIDF:
             # The count of each word
             word_frequency = Counter(words)
 
-            # Create a zero value dictionary of all words in words list
+            # calculate tf for each word by dividing the count by the total number of words 
             tf_dict = {word: word_count / len(words) for word, word_count in word_frequency.items()}
 
             # Add the word dictionary as new row to the df_tfidf Dataframe
+            # because there might be words that are new to other documents we get NaNs
+            # so we replace them with a reasonable default which is 0
             self.df_tfidf = self.df_tfidf.append(tf_dict, ignore_index=True).fillna(0)
 
     def calculate_tfidf(self):
@@ -68,12 +70,14 @@ class TFIDF:
         # Iterate over all the words
         for word in self.df_tfidf:
 
-            # How many rows in the column contain the word?
+            # How many rows (=documents) contain the word?
             # that is equal to a value greater zero because the value is the tf
             document_frequency = len(self.df_tfidf[self.df_tfidf[word] > 0])
 
             # if a word occurs in all documents, N = df and log(1) equals zero
             # so the word is not helpful in classifying a document
+            # if a word occurs only in one document, the ratio is identical to number_documents
+            # and the log10 is max -> idf score is max for this word so the word is highly distinctive
             word_idf = math.log10(number_documents / document_frequency)
 
             # Update df_tfidf Dataframe with idf calculation
