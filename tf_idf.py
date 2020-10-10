@@ -18,8 +18,18 @@ class TFIDF:
         # A set of all the words in the corpus
         self.words = set()
 
+
+    def __call__(self) -> pd.DataFrame:
         # create initial word list
         self.generate_wordlist()
+
+        # calculate tf for all documents
+        self.calculate_tf()
+
+        # calculate tf_idf
+        self.calculate_tfidf()
+
+        return self.df_tfidf
 
     def generate_wordlist(self):
         # Assume data is in column 1
@@ -30,61 +40,50 @@ class TFIDF:
         # because we have only one column, squeeze flattens the matrix
         # so we can loop through the column
         # and document becomes the actual string
-        for document in self.corpus.values.squeeze():
+        for document in self._docs_from_corpus():
             # Split string and add to words set
             self.words.update(document.split())
 
     def calculate_tf(self):
         # Create a Dataframe containing the Term Frequency values
-
-        # Loop through rows of dataframe by index i.e. from 0 to number of rows
-        for i in range(0, self.corpus.shape[0]):
-            # Get row contents as series using iloc[] and index position of row
-            row = self.corpus.iloc[i]
-
-            # The number of words in the string
-            number_words = len(row[0].split())
+        # tf for word i and document j is equal to the number of occurences n of this word in the document
+        # divided by the total number of words for this document
+        for document in self._docs_from_corpus():
+            words = document.split()
 
             # The count of each word
-            words_count = Counter(row[0].split())
+            word_frequency = Counter(words)
 
             # Create a zero value dictionary of all words in words list
-            word_dict = dict.fromkeys(self.words, 0)
+            tf_dict = {word: word_count / len(words) for word, word_count in word_frequency.items()}
 
-            # Update the word dictionary with the count of word / number of words
-            for word, count in words_count.items():
-                word_dict[word] = count / number_words
-
-            # Append the word dictionary to the df_tfidf Dataframe
-            self.df_tfidf = self.df_tfidf.append(word_dict, ignore_index=True)
+            # Add the word dictionary as new row to the df_tfidf Dataframe
+            self.df_tfidf = self.df_tfidf.append(tf_dict, ignore_index=True).fillna(0)
 
     def calculate_tfidf(self):
-        # Start by calculating the Term Frequency Dataframe
-        self.calculate_tf()
-
         # IDF = Log[ (Number of documents) /
         #            (Number of documents containing the word) ]
-        number_documents = self.df_tfidf.shape[0]
+        number_documents = len(self.df_tfidf)
 
-        # Iterate over all the columns
-        for column_name in self.df_tfidf:
+        # Iterate over all the words
+        for word in self.df_tfidf:
 
-            # How many rows in the column don't contain zero
-            documents_with_words = (
-                number_documents
-                - self.df_tfidf[self.df_tfidf[column_name] == 0].shape[0]
-            )
+            # How many rows in the column contain the word?
+            # that is equal to a value greater zero because the value is the tf
+            document_frequency = len(self.df_tfidf[self.df_tfidf[word] > 0])
 
-            word_tfidf = math.log10(number_documents / documents_with_words)
+            # if a word occurs in all documents, N = df and log(1) equals zero
+            # so the word is not helpful in classifying a document
+            word_idf = math.log10(number_documents / document_frequency)
 
             # Update df_tfidf Dataframe with idf calculation
-            self.df_tfidf[column_name] = self.df_tfidf[column_name] * word_tfidf
+            self.df_tfidf[word] *= word_idf
+
+    def _docs_from_corpus(self):
+        return self.corpus.values.squeeze()
 
 
-df = pd.read_csv("samples_02.txt", header=None)
+df = pd.read_csv("samples_01.txt", header=None)
 
 tf_idf = TFIDF(df)
-tf_idf.calculate_tfidf()
-print(tf_idf.corpus)
-print(tf_idf.words)
-print(tf_idf.df_tfidf)
+print(tf_idf())
